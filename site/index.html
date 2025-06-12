@@ -4,23 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InsightSphere - AI-Powered Deep Search</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Caminho relativo corrigido -->
+    <!-- Garanta que o caminho para o seu CSS está correto -->
     <link rel="stylesheet" href="./assets/style.css">
 </head>
 <body>
-    <!-- O resto do seu HTML permanece o mesmo -->
-    <div class="top-controls">...</div>
-    <div class="header">...</div>
-    <div class="card" id="card">...</div>
-    <div class="dynamic-content" id="dynamic-content"></div>
+    <!-- Controles no topo da página -->
+    <div class="top-controls">
+        <button class="icon-btn" id="theme-toggle-btn" title="Toggle Theme"><i class="fas fa-moon"></i></button>
+    </div>
+
+    <!-- Cabeçalho principal -->
+    <div class="header">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Information_icon4_orange.svg/120px-Information_icon4_orange.svg.png" alt="InsightSphere Logo" class="logo">
+        <h1>InsightSphere <span class="beta-badge">AI</span></h1>
+        <p>Your intelligent bridge to the world's knowledge.</p>
+    </div>
+
+    <!-- Card principal de entrada de texto -->
+    <div class="card" id="card">
+        <div class="input-container">
+            <textarea id="editor" placeholder="Initializing AI..." disabled></textarea>
+        </div>
+        <div class="controls-container">
+            <button class="submit-btn" id="submit-button" title="Generate Plan" disabled>
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Contêiner dinâmico para o plano de ação e o relatório final -->
+    <div class="dynamic-content" id="dynamic-content">
+        <!-- O conteúdo será injetado aqui pelo JavaScript -->
+    </div>
     
+    <!-- Scripts no final do body para melhor performance -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna@1.0.1/dist/qna.min.js"></script>
-    <!-- Caminho relativo corrigido -->
+    <!-- Garanta que o caminho para o seu JS está correto -->
     <script src="./assets/script.js"></script>
 </body>
 </html>
