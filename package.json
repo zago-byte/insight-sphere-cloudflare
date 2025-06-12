@@ -1,9 +1,11 @@
 {
-  "name": "insight-sphere-diagnostic-backend",
+  "name": "insight-sphere-ai-backend",
   "version": "1.0.0",
   "private": true,
   "dependencies": {
     "axios": "latest",
-    "cheerio": "latest"
+    "cheerio": "latest",
+    "@tensorflow/tfjs-node": "^4.17.0",
+    "@tensorflow-models/qna": "latest"
   }
 }
