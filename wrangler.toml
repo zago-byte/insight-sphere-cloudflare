@@ -1,0 +1,26 @@
+# wrangler.toml
+# Arquivo de configuração para o Cloudflare Pages e Workers
+
+name = "insight-sphere-cloudflare"
+compatibility_date = "2023-10-30" # Uma data de compatibilidade recente
+
+[pages_build_output]
+dir = "./site" # Aponta para o diretório de saída do seu front-end
+
+[[rules]]
+# Esta regra garante que a pasta /assets seja servida corretamente
+type = "ServeStatic"
+globs = ["/assets/*"]
+path = "/site/assets"
+
+[[rules]]
+# Esta regra captura todas as outras requisições e as envia para a função
+type = "ServeStatic"
+globs = ["/*"]
+path = "/site"
+
+# --- A PARTE MAIS IMPORTANTE ---
+# Adiciona as flags de compatibilidade que faltavam na interface
+[compatibility_flags]
+nodejs_compat = true
+streams_enable_constructors = true
