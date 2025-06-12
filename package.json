@@ -1,14 +1,12 @@
 {
-  "name": "insight-sphere-cloudflare-backend",
+  "name": "insight-sphere-ai-backend",
   "version": "1.0.0",
   "private": true,
-  "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev"
-  },
   "dependencies": {
     "axios": "^1.6.0",
-    "cheerio": "^1.0.0-rc.12"
+    "cheerio": "^1.0.0-rc.12",
+    "@tensorflow/tfjs-node": "^4.11.0",
+    "@tensorflow-models/qna": "^2.3.1"
   },
   "devDependencies": {
     "wrangler": "^3.0.0"

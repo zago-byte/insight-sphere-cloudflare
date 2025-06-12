@@ -1,124 +1,89 @@
 import axios from 'axios';
-// A CORREÇÃO ESTÁ AQUI: Mudamos a forma de importar o Cheerio.
 import * as cheerio from 'cheerio';
+// Importa as bibliotecas de IA
+import * as tf from '@tensorflow/tfjs-node';
+import * as qna from '@tensorflow-models/qna';
 
-/**
- * Função principal que atua como um roteador para todas as requisições /api/*
- */
-export async function onRequest(context) {
-    const { request, env, params } = context;
-    const path = params.path.join('/'); // Ex: 'generate-plan' ou 'execute-search'
+let qnaModel; // Vamos carregar o modelo uma vez e reutilizá-lo (otimização)
 
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Content-Type': 'application/json'
-    };
-    
-    if (request.method === 'OPTIONS') {
-        return new Response(null, { headers });
-    }
-
-    try {
-        let responseBody;
-        let status = 200;
-
-        if (path === 'generate-plan') {
-            responseBody = await generatePlan(request, env);
-        } else if (path === 'execute-search') {
-            responseBody = await executeSearch(request, env);
-        } else {
-            responseBody = { error: 'Endpoint not found' };
-            status = 404;
-        }
-        
-        // Verificamos se as funções internas retornaram um erro para ajustar o status HTTP
-        if (responseBody.error) {
-             if (request.method !== 'POST' && (path === 'generate-plan' || path === 'execute-search')) {
-                status = 405; // Method Not Allowed
-             } else if (responseBody.error.includes('required')) {
-                status = 400; // Bad Request
-             } else {
-                status = 500; // Internal Server Error
-             }
-        }
-
-        return new Response(JSON.stringify(responseBody), { status, headers });
-
-    } catch (error) {
-        console.error(`Error in main handler for path ${path}:`, error);
-        return new Response(JSON.stringify({ error: 'An internal server error occurred.' }), { status: 500, headers });
-    }
-}
-
-// --- Lógica para gerar o plano de ação ---
-async function generatePlan(request, env) {
-    if (request.method !== 'POST') return { error: 'Method Not Allowed' };
-    try {
-        const { query } = await request.json();
-        if (!query) return { error: 'Query is required' };
-
-        const WIT_AI_TOKEN = env.WIT_AI_API_KEY;
-        if (!WIT_AI_TOKEN) return { error: 'Server configuration error: API key not set.' };
-        
-        const witResponse = await axios.get(`https://api.wit.ai/message?v=20250505&q=${encodeURIComponent(query)}`, {
-            headers: { 'Authorization': `Bearer ${WIT_AI_TOKEN}` }
-        });
-        
-        const entities = witResponse.data.entities;
-        const mainTerm = entities['search_term:search_term']?.[0]?.value || query;
-        
-        return {
-            mainTerm,
-            steps: [
-                `Define what "${mainTerm}" is.`,
-                `Investigate the core principles and history of "${mainTerm}".`,
-                `Analyze the main challenges or benefits related to "${mainTerm}".`,
-                `Explore real-world applications or examples of "${mainTerm}".`
-            ]
-        };
-    } catch (e) { return { error: 'Invalid JSON body for generate-plan request.' }; }
-}
-
-// --- Lógica para executar a busca e o scraping ---
-async function executeSearch(request, env) {
-    if (request.method !== 'POST') return { error: 'Method Not Allowed' };
-    try {
-        const { planSteps } = await request.json();
-        if (!planSteps || !Array.isArray(planSteps)) return { error: 'Plan steps are required' };
-
-        let allArticles = [];
-        for (const step of planSteps) {
-            try {
-                const ddgResponse = await axios.get(`https://api.duckduckgo.com/?q=${encodeURIComponent(step)}&format=json&no_html=1`);
-                const targets = (ddgResponse.data.RelatedTopics || [])
-                    .filter(t => t.FirstURL)
-                    .map(t => t.FirstURL)
-                    .slice(0, 2);
-                
-                const scrapePromises = targets.map(scrapeUrl);
-                const articlesForStep = (await Promise.all(scrapePromises)).filter(Boolean);
-                allArticles.push(...articlesForStep);
-            } catch (e) {
-                console.error(`Failed to process step "${step}":`, e.message);
-            }
-        }
-        const uniqueArticles = Array.from(new Map(allArticles.map(item => [item['sourceUrl'], item])).values());
-        return { articles: uniqueArticles };
-    } catch (e) { return { error: 'Invalid JSON body for execute-search request.' }; }
-}
-
-// --- Função auxiliar de scraping ---
+// --- Funções Auxiliares ---
 async function scrapeUrl(url) {
     try {
-        const { data } = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 InsightSphere/CF-Worker' } });
+        const { data } = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 InsightSphere/CF-Worker-AI' } });
         const $ = cheerio.load(data);
         const title = $('h1').first().text().trim() || $('title').text().trim() || 'Untitled';
         let content = '';
         $('article p, main p').each((i, elem) => { content += $(elem).text().trim() + '\n\n'; });
         return (content.length < 200) ? null : { sourceUrl: url, title, content };
-    } catch {
-        return null;
+    } catch { return null; }
+}
+
+async function analyzeAndRank(query, articles) {
+    if (!articles || articles.length === 0) return [];
+    
+    // Carrega o modelo de IA na primeira vez que for necessário
+    if (!qnaModel) {
+        console.log("Loading QnA model on backend...");
+        qnaModel = await qna.load();
+        console.log("QnA model loaded.");
+    }
+
+    const analysisPromises = articles.map(async (article) => {
+        try {
+            const answers = await qnaModel.findAnswers(query, article.content);
+            const topAnswer = answers.length > 0 ? answers.sort((a, b) => b.score - a.score)[0] : { text: 'No specific answer found.', score: 0 };
+            return { ...article, relevanceScore: topAnswer.score, bestAnswer: topAnswer.text };
+        } catch (e) {
+            console.error(`Error analyzing article: ${article.title}`, e);
+            // Retorna o artigo sem pontuação em caso de erro na análise
+            return { ...article, relevanceScore: 0, bestAnswer: 'Analysis failed for this article.' };
+        }
+    });
+    
+    const ranked = await Promise.all(analysisPromises);
+    return ranked.sort((a, b) => b.relevanceScore - a.relevanceScore);
+}
+
+
+// --- Roteador Principal do Worker ---
+export async function onRequest(context) {
+    const { request, env } = context;
+    const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
+    
+    if (request.method === 'OPTIONS') return new Response(null, { headers });
+    if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers });
+
+    try {
+        const { query, detailLevel = 3 } = await request.json();
+        if (!query) return new Response(JSON.stringify({ error: 'Query is required' }), { status: 400, headers });
+
+        // FASE 1: Obter Alvos
+        const ddgResponse = await axios.get(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`);
+        const targets = (ddgResponse.data.RelatedTopics || [])
+            .filter(t => t.FirstURL)
+            .map(t => t.FirstURL)
+            .slice(0, {1: 3, 2: 5, 3: 8, 4: 10, 5: 15}[detailLevel] ?? 8);
+
+        if (targets.length === 0) {
+            return new Response(JSON.stringify({ error: 'No potential sources found.' }), { status: 404, headers });
+        }
+
+        // FASE 2: Fazer Scraping
+        const scrapePromises = targets.map(scrapeUrl);
+        const articles = (await Promise.all(scrapePromises)).filter(Boolean);
+
+        if (articles.length === 0) {
+            return new Response(JSON.stringify({ error: 'Could not retrieve content from any source.' }), { status: 502, headers });
+        }
+        
+        // FASE 3: Análise de IA no Back-end
+        const rankedArticles = await analyzeAndRank(query, articles);
+
+        // O back-end envia o relatório final, já processado e ranqueado.
+        return new Response(JSON.stringify({ rankedArticles }), { status: 200, headers });
+
+    } catch (error) {
+        console.error("Backend Error:", error);
+        return new Response(JSON.stringify({ error: 'An internal server error occurred.' }), { status: 500, headers });
     }
 }
